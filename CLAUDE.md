@@ -32,6 +32,8 @@ Every skill's first action on invocation MUST:
 1. State which skill is handling the request, with a one-word redirect hint (e.g. "Handling this as `lovebuilder`; say 'docs' if you wanted research").
 2. Append a line to `.claude/skill-log.jsonl` using `scripts/log-skill.sh`.
 
+**Exception for non-interactive mode** (invoked via `claude -p`, e.g. the pre-commit hook): rule 1 does NOT apply — the final response must be exactly the format the caller requested (JSON for `audit`), with no preamble. Rule 2 (logging) still applies; the Bash call is not part of the final response text.
+
 ### `.claude/skill-log.jsonl` schema
 
 One JSON object per line:

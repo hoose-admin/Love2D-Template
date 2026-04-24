@@ -30,14 +30,17 @@ observability:
 
 ## Invocation preamble
 
-First response MUST state the mode and scope, e.g.:
-"Handling this as `audit` in staged mode. I will respond with a single JSON object per RUBRIC.md § Output format."
+**Interactive mode** (a human is chatting with you): first response states the mode and scope, e.g. "Handling this as `audit` in staged mode."
 
-Then log:
+**Non-interactive mode** (invoked via `claude -p` from `hooks/pre-commit` — detectable because the prompt contains the literal phrase "AS YOUR ENTIRE FINAL RESPONSE"): emit NO preamble, NO prose, NO status line, NO markdown fences. The first and only thing in your final response is the JSON object. A preamble here breaks the hook's JSON parser. If you feel the urge to write "Staged diff is..." or "No findings." — don't. The JSON itself carries that information.
+
+Log the invocation silently (in both modes):
 
 ```bash
 scripts/log-skill.sh --skill audit --version 0.1.0 --prompt "<user's triggering message>" --mode <staged|full|scope>
 ```
+
+In non-interactive mode, the Bash tool call is fine — its output is not part of your final response; only your final chat message is. Keep that message JSON-only.
 
 ## Procedure
 
@@ -82,9 +85,9 @@ Shape (see RUBRIC.md § Output format for field details):
 
 ### 5. Interactive-mode nicety
 
-When a human is clearly present (not the pre-commit hook), also write a human-readable version to `audits/<YYYY-MM-DD>-<scope>.md` BEFORE emitting the JSON, and then end the response with the JSON object alone. The hook will parse only the last JSON object; the human reads the file.
+In interactive mode, use the `Write` tool to create `audits/<YYYY-MM-DD>-<scope>.md` with a human-readable version of the findings BEFORE your final chat response. Then your final chat response is still the JSON object alone — do not also paste the human summary into chat. The file is the narrative; the JSON is the machine-readable receipt.
 
-In non-interactive (`claude -p`) mode, skip the file write and emit only the JSON.
+In non-interactive (`claude -p`) mode, skip the file write entirely and emit only the JSON. Even though the hook will recover the last balanced JSON object from mixed output as a fail-safe, rely on that tolerance at your peril — the contract is JSON-only.
 
 ### 6. Reproducibility
 
