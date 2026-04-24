@@ -60,13 +60,50 @@ if result_str.startswith("```"):
     lines = result_str.splitlines()
     result_str = "\n".join(lines[1:-1] if lines[-1].startswith("```") else lines[1:])
 
+def extract_last_json_object(s):
+    # Scan for the last balanced {...} block; tolerates prose before/after.
+    depth = 0
+    start = -1
+    last = None
+    in_str = False
+    esc = False
+    for i, ch in enumerate(s):
+        if in_str:
+            if esc:
+                esc = False
+            elif ch == "\\":
+                esc = True
+            elif ch == '"':
+                in_str = False
+            continue
+        if ch == '"':
+            in_str = True
+        elif ch == "{":
+            if depth == 0:
+                start = i
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0 and start >= 0:
+                last = s[start : i + 1]
+    return last
+
 try:
     audit = json.loads(result_str)
-except Exception as e:
-    print(f"pre-commit: audit skill did not return parseable JSON: {e}", file=sys.stderr)
-    print(f"result (first 500 chars): {result_str[:500]}", file=sys.stderr)
-    print("(blocking as a fail-safe)", file=sys.stderr)
-    sys.exit(1)
+except Exception:
+    candidate = extract_last_json_object(result_str)
+    if candidate is None:
+        print("pre-commit: audit skill did not return parseable JSON", file=sys.stderr)
+        print(f"result (first 500 chars): {result_str[:500]}", file=sys.stderr)
+        print("(blocking as a fail-safe)", file=sys.stderr)
+        sys.exit(1)
+    try:
+        audit = json.loads(candidate)
+    except Exception as e:
+        print(f"pre-commit: audit skill did not return parseable JSON: {e}", file=sys.stderr)
+        print(f"result (first 500 chars): {result_str[:500]}", file=sys.stderr)
+        print("(blocking as a fail-safe)", file=sys.stderr)
+        sys.exit(1)
 
 blockers = int(audit.get("blockers", 0))
 majors   = int(audit.get("majors", 0))

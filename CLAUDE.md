@@ -10,13 +10,18 @@ A Hollow-Knight-style 2D platformer in Love2D, built via a small set of Claude s
 
 ## Skill System
 
-Four skills live in `.claude/skills/`:
+Two skills currently live in `.claude/skills/` (Phase 1):
 
 | Skill | Role |
 |---|---|
 | `lovebuilder` | scaffold project, implement features, author levels, wire save system |
-| `lovedoc` | on-demand Love2D API lookups, gamedev patterns, open-source code references |
 | `audit` | rubric-driven code review; reads `RUBRIC.md` in its own folder |
+
+Two more are planned for Phase 2 (see `Plan.md § Phase 2`):
+
+| Skill | Role |
+|---|---|
+| `lovedoc` | on-demand Love2D API lookups, gamedev patterns, open-source code references |
 | `skill-smith` | author and edit other skills |
 
 Skills are specialists, not pipeline stages. They read the filesystem to discover prior work. They do not call each other.
@@ -78,4 +83,4 @@ Valid `outcome` values: `success`, `declined`, `ambiguous`, `error`.
 
 ## Phase
 
-Currently in Phase 0 (instrumentation + specs). Phase 1 (`lovebuilder` + `audit`, walking character) starts once Phase 0's `claude -p` capability check passes.
+Currently in Phase 1 (`lovebuilder` + `audit`, walking character). Phase 0 (instrumentation + specs) complete; `claude -p` capability check passed 2026-04-24. Phase 2 (`lovedoc` + `skill-smith`, feedback loop) follows.
