@@ -1,0 +1,9 @@
+# Trigger fixtures for the `skill-smith` skill.
+# Populated during Phase 2 when skill-smith is authored.
+
+skill: skill-smith
+version: 0.1.0
+
+should_fire: []
+should_skip: []
+should_disambiguate: []

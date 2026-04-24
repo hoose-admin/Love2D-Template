@@ -1,0 +1,9 @@
+# Trigger fixtures for the `lovedoc` skill.
+# Populated during Phase 2 when lovedoc is authored.
+
+skill: lovedoc
+version: 0.1.0
+
+should_fire: []
+should_skip: []
+should_disambiguate: []

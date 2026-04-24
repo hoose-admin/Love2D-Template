@@ -1,0 +1,9 @@
+# Trigger fixtures for the `audit` skill.
+# Populated during Phase 1 alongside lovebuilder.
+
+skill: audit
+version: 0.1.0
+
+should_fire: []
+should_skip: []
+should_disambiguate: []

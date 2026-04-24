@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# Pre-commit hook: runs the `audit` skill on staged changes and blocks on severity.
+# Blocks when blockers >= 1 OR majors >= 3. Minors warn only.
+#
+# Depends on `claude -p` supporting slash-command invocation non-interactively.
+# If the verification from Phase 0 failed, this hook will not work as intended.
+
+set -euo pipefail
+
+if ! command -v claude >/dev/null 2>&1; then
+  echo "pre-commit: 'claude' CLI not found on PATH; skipping audit." >&2
+  exit 0
+fi
+
+STAGED="$(git diff --staged --name-only)"
+if [[ -z "$STAGED" ]]; then
+  exit 0
+fi
+
+echo "pre-commit: running /audit on staged changes..."
+result="$(claude -p '/audit staged' 2>&1 || true)"
+echo "$result"
+
+trailer="$(echo "$result" | grep -E '^AUDIT_RESULT:' | tail -1 || true)"
+if [[ -z "$trailer" ]]; then
+  echo "pre-commit: audit did not emit AUDIT_RESULT trailer — blocking as a fail-safe." >&2
+  exit 1
+fi
+
+blockers="$(echo "$trailer" | grep -oE 'blockers=[0-9]+' | cut -d= -f2 || echo 0)"
+majors="$(echo "$trailer" | grep -oE 'majors=[0-9]+'   | cut -d= -f2 || echo 0)"
+
+if [[ "${blockers:-0}" -ge 1 || "${majors:-0}" -ge 3 ]]; then
+  echo ""
+  echo "pre-commit: BLOCKED. blockers=${blockers} majors=${majors}"
+  echo "  Re-run with 'claude -p /audit staged' to inspect findings."
+  echo "  Bypass (not recommended): git commit --no-verify"
+  exit 1
+fi
+
+echo "pre-commit: audit passed (blockers=${blockers} majors=${majors})."
+exit 0
