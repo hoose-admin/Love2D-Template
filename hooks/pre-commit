@@ -1,9 +1,15 @@
 #!/usr/bin/env bash
-# Pre-commit hook: runs the `audit` skill on staged changes and blocks on severity.
-# Blocks when blockers >= 1 OR majors >= 3. Minors warn only.
+# Pre-commit hook: runs the `audit` skill on staged changes.
 #
-# Depends on `claude -p` supporting slash-command invocation non-interactively.
-# If the verification from Phase 0 failed, this hook will not work as intended.
+# Currently WARN-ONLY on severity (per Plan.md §Phase 4, enforcement turns on
+# once Phase 2 fixtures pass ≥85%). Parse failures and claude errors still
+# block as a fail-safe — a silently-skipped audit is worse than a noisy one.
+# To enforce severity gating, set PLATFORMER_HOOK_ENFORCE=1 in the environment.
+#
+# Uses `claude -p --output-format json` and parses the structured result.
+# Custom slash commands are not available in `-p` mode (Claude Code design),
+# so the audit skill is invoked via natural-language prompt. The skill's
+# description/triggers must match this prompt.
 
 set -euo pipefail
 
@@ -17,26 +23,70 @@ if [[ -z "$STAGED" ]]; then
   exit 0
 fi
 
-echo "pre-commit: running /audit on staged changes..."
-result="$(claude -p '/audit staged' 2>&1 || true)"
-echo "$result"
+read -r -d '' PROMPT <<'PROMPT_EOF' || true
+Invoke the audit skill in staged mode. Read `git diff --staged`, apply the rubric in .claude/skills/audit/RUBRIC.md, and respond with a single JSON object AS YOUR ENTIRE FINAL RESPONSE (no markdown fences, no surrounding text). Shape:
 
-trailer="$(echo "$result" | grep -E '^AUDIT_RESULT:' | tail -1 || true)"
-if [[ -z "$trailer" ]]; then
-  echo "pre-commit: audit did not emit AUDIT_RESULT trailer — blocking as a fail-safe." >&2
-  exit 1
-fi
+{"status":"PASS"|"FAIL","blockers":<int>,"majors":<int>,"minors":<int>,"findings":[{"severity":"blocker"|"major"|"minor","dimension":"D1"|"D2"|"D3"|"D4"|"D5"|"D6"|"D7"|"D8","file":"<path>","line":<int>,"message":"<text>"}]}
 
-blockers="$(echo "$trailer" | grep -oE 'blockers=[0-9]+' | cut -d= -f2 || echo 0)"
-majors="$(echo "$trailer" | grep -oE 'majors=[0-9]+'   | cut -d= -f2 || echo 0)"
+"status" is "FAIL" if blockers>=1 OR majors>=3, else "PASS".
+PROMPT_EOF
 
-if [[ "${blockers:-0}" -ge 1 || "${majors:-0}" -ge 3 ]]; then
-  echo ""
-  echo "pre-commit: BLOCKED. blockers=${blockers} majors=${majors}"
-  echo "  Re-run with 'claude -p /audit staged' to inspect findings."
-  echo "  Bypass (not recommended): git commit --no-verify"
-  exit 1
-fi
+TMP="$(mktemp)"
+trap "rm -f '$TMP'" EXIT
 
-echo "pre-commit: audit passed (blockers=${blockers} majors=${majors})."
-exit 0
+echo "pre-commit: running audit on staged changes..."
+claude -p "$PROMPT" --output-format json >"$TMP" 2>&1 || true
+
+python3 - "$TMP" <<'PY'
+import sys, json
+path = sys.argv[1]
+try:
+    with open(path) as f:
+        outer = json.load(f)
+except Exception as e:
+    with open(path) as f:
+        body = f.read()[:500]
+    print(f"pre-commit: could not parse claude -p JSON envelope: {e}", file=sys.stderr)
+    print(f"raw (first 500 chars): {body}", file=sys.stderr)
+    sys.exit(1)
+
+if outer.get("is_error"):
+    print(f"pre-commit: claude returned an error: {outer.get('result','')[:500]}", file=sys.stderr)
+    sys.exit(1)
+
+result_str = outer.get("result", "").strip()
+# Tolerate markdown fence around JSON, just in case.
+if result_str.startswith("```"):
+    lines = result_str.splitlines()
+    result_str = "\n".join(lines[1:-1] if lines[-1].startswith("```") else lines[1:])
+
+try:
+    audit = json.loads(result_str)
+except Exception as e:
+    print(f"pre-commit: audit skill did not return parseable JSON: {e}", file=sys.stderr)
+    print(f"result (first 500 chars): {result_str[:500]}", file=sys.stderr)
+    print("(blocking as a fail-safe)", file=sys.stderr)
+    sys.exit(1)
+
+blockers = int(audit.get("blockers", 0))
+majors   = int(audit.get("majors", 0))
+minors   = int(audit.get("minors", 0))
+status   = audit.get("status", "FAIL")
+
+print(f"pre-commit: blockers={blockers} majors={majors} minors={minors} status={status}")
+for f in audit.get("findings", []):
+    print(f"  [{f.get('severity','?')}] {f.get('dimension','?')} {f.get('file','?')}:{f.get('line','?')} — {f.get('message','')}")
+
+import os
+enforce = os.environ.get("PLATFORMER_HOOK_ENFORCE") == "1"
+if blockers >= 1 or majors >= 3:
+    print("", file=sys.stderr)
+    if enforce:
+        print(f"pre-commit: BLOCKED. blockers={blockers} majors={majors}", file=sys.stderr)
+        print("  Inspect: claude -p 'audit the staged diff'", file=sys.stderr)
+        print("  Bypass (not recommended): git commit --no-verify", file=sys.stderr)
+        sys.exit(1)
+    print(f"pre-commit: WARN. blockers={blockers} majors={majors} (warn-only until Phase 2; set PLATFORMER_HOOK_ENFORCE=1 to enforce)", file=sys.stderr)
+    sys.exit(0)
+print("pre-commit: audit passed.")
+PY

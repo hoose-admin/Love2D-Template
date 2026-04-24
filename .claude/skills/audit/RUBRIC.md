@@ -70,12 +70,38 @@ Does the change match what recent playtest notes flagged? `audit` reads `playtes
 - **Major:** a playtest-flagged concern touches code being modified, but the diff doesn't address it.
 - **Minor:** not used — feel findings are either blocking or worth naming explicitly.
 
-## Exit trailer
+## Output format
 
-Every `audit` run prints exactly one line at the end:
+When invoked non-interactively (e.g. from the pre-commit hook via `claude -p ... --output-format json`), the audit skill's ENTIRE final response must be a single JSON object with exactly this shape — no markdown fences, no prose before or after:
 
+```json
+{
+  "status": "PASS",
+  "blockers": 0,
+  "majors": 1,
+  "minors": 3,
+  "findings": [
+    {
+      "severity": "major",
+      "dimension": "D4",
+      "file": "src/player.lua",
+      "line": 47,
+      "message": "table literal allocated each frame in update loop"
+    }
+  ]
+}
 ```
-AUDIT_RESULT: blockers=<N> majors=<N> minors=<N>
-```
 
-The pre-commit hook greps for this line. If missing, the hook treats the audit as failed.
+Field rules:
+
+| Field | Type | Notes |
+|---|---|---|
+| `status` | `"PASS"` \| `"FAIL"` | `"FAIL"` if blockers ≥ 1 OR majors ≥ 3, else `"PASS"` |
+| `blockers` / `majors` / `minors` | integer | Counts; must match `findings` array |
+| `findings[].severity` | `"blocker"` \| `"major"` \| `"minor"` | Matches the dimension table above |
+| `findings[].dimension` | `"D1"`–`"D8"` | Cites the rubric dimension |
+| `findings[].file` | string | Repo-relative path |
+| `findings[].line` | integer | 1-based; `0` if dimension is project-wide |
+| `findings[].message` | string | One sentence; no trailing period required |
+
+When invoked interactively, the skill prints human-readable findings grouped by severity and still ends with the JSON object for consistency. The pre-commit hook parses `.result` from the `--output-format json` envelope, then parses it again as the audit JSON above; if either parse fails, the hook blocks as a fail-safe.

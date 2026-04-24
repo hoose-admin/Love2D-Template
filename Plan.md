@@ -322,28 +322,29 @@ Run weekly. Feeds fixtures back into `tests/skills/`.
 
 ### 8.1 Pre-commit hook
 
-`.git/hooks/pre-commit` (committed into the repo and installed via `scripts/install-hooks.sh`):
+`.git/hooks/pre-commit` (committed into the repo as `hooks/pre-commit`, installed via `scripts/install-hooks.sh`).
+
+**Phase 0 verification outcome (2026-04-24):**
+- `claude -p` runs non-interactively ✓
+- `--output-format json` works and returns a structured envelope (`{type, subtype, result, ...}`) ✓
+- `--json-schema` flag is recognized (not used for now; shape enforced by prompt) ✓
+- Custom slash commands are **not available** in `-p` mode (Claude Code design boundary) ✗
+- Working directory passes through so skills can run `git diff --staged` ✓
+
+**Design consequences:**
+1. Skills cannot be addressed by slash command from the hook — we use a natural-language prompt that the `audit` skill's description/triggers must match.
+2. Instead of parsing a freeform trailer line, the audit skill produces a **single JSON object as its final response**. The hook runs `claude -p "$PROMPT" --output-format json`, extracts `.result`, parses it as audit JSON, and gates on `blockers`/`majors`.
+3. The JSON shape is specified in `.claude/skills/audit/RUBRIC.md § Output format` and is the single source of truth.
+
+**Hook outline** (full script in `hooks/pre-commit`):
 
 ```bash
-#!/usr/bin/env bash
-set -euo pipefail
-result=$(claude -p "/audit staged" 2>&1)
-echo "$result"
-trailer=$(echo "$result" | grep -E '^AUDIT_RESULT: ' | tail -1)
-blockers=$(echo "$trailer" | grep -oE 'blockers=[0-9]+' | cut -d= -f2)
-majors=$(echo "$trailer" | grep -oE 'majors=[0-9]+' | cut -d= -f2)
-if [[ "${blockers:-0}" -ge 1 || "${majors:-0}" -ge 3 ]]; then
-  echo "Pre-commit blocked by audit. Run 'claude -p /audit staged' to inspect."
-  exit 1
-fi
+PROMPT='Invoke the audit skill in staged mode. Read `git diff --staged`, apply the rubric, respond with a single JSON object and nothing else: {"status":..., "blockers":..., "majors":..., "minors":..., "findings":[...]}'
+claude -p "$PROMPT" --output-format json > tmp.json
+# extract .result, parse as JSON, gate on blockers>=1 or majors>=3
 ```
 
-**Phase 0 verification step:** before shipping the hook, verify in a throwaway repo that:
-1. `claude -p` runs non-interactively to completion.
-2. Slash-command invocations (`/audit`) are honored in `-p` mode.
-3. The audit skill can read `git diff --staged` from its working directory.
-
-If any of those fail, redesign the hook before Phase 4 — do not discover this at ship time.
+**Consequence for the `audit` skill:** its `description` and `fires_when` must match natural-language phrases like "invoke the audit skill in staged mode" and "audit the staged diff". Phase 1 fixtures must include the hook's exact prompt as a `should_fire` case. If the skill fails to fire or emits non-JSON output, the hook blocks as a fail-safe — a missing audit is a louder failure than a failed audit.
 
 ### 8.2 Skill-change tracking
 
@@ -368,7 +369,7 @@ This is the documented manual path. Every other skill change goes through `skill
 
 | # | Decision | Value |
 |---|---|---|
-| 1 | Love2D install | `lovebuilder` installs via platform package manager (`brew`/`apt`/`winget`); fails loudly if none available |
+| 1 | Love2D install (macOS) | `scripts/install-love2d.sh` downloads the official `.zip` from love2d.org (github releases), installs to `/Applications/love.app`, strips the Gatekeeper quarantine attribute, and drops a CLI wrapper at `~/.local/bin/love`. Brew cask is NOT used — it was deprecated (disabled 2026-09-01) because Love2D's binary isn't notarized. Linux/Windows install path: deferred to Phase 4 (`ship-it`) since dev is on macOS. |
 | 2 | Love2D version pin | **11.5** (conservative, broad platform support). Written to `.love-version` by `lovebuilder`. Revisit for 12.x after Phase 4 ships |
 | 3 | Save format | JSON via `love.filesystem`, top-level `schema_version` from day one. Lives in `lovebuilder` (not a separate skill) |
 | 4 | Target platform | Desktop only (macOS, Linux, Windows). No love.js |
@@ -390,7 +391,7 @@ Blocker work that enables everything else. Do not skip.
 - [ ] Create `.claude/skill-log.jsonl` (empty file) and document the schema in a repo-level `CLAUDE.md`.
 - [ ] Commit `tests/skills/` directory with placeholder fixture files.
 - [ ] Write `.claude/skills/audit/RUBRIC.md` with the Section 5.2 dimensions.
-- [ ] **Verify `claude -p` supports slash commands non-interactively** (Section 8.1). If it doesn't, redesign the pre-commit hook before Phase 4.
+- [x] **Verify `claude -p` capabilities** — confirmed 2026-04-24: runs non-interactively ✓, reads staged git diff ✓, custom slash commands unavailable ✗. Hook redesigned to use natural-language invocation (see §8.1).
 
 **Done when:** `scripts/validate-skill.sh` runs successfully against a hand-written stub skill, and the `claude -p` experiment confirms the hook design.
 

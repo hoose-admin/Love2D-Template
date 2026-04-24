@@ -1,19 +1,38 @@
-# Trigger fixtures for the `lovebuilder` skill.
-# Real prompts get filled in during Phase 1 when lovebuilder is authored.
-# Minimums required at end of Phase 1: >=5 should_fire, >=5 should_skip, >=2 should_disambiguate.
-
 skill: lovebuilder
 version: 0.1.0
 
 should_fire:
-  # Example (to be replaced with real fixtures in Phase 1):
-  # - prompt: "scaffold the project"
-  #   expected_artifacts: ["main.lua", "conf.lua", ".love-version"]
+  - prompt: "scaffold the platformer"
+    expected_artifacts: ["main.lua", "conf.lua", "src/player.lua"]
+  - prompt: "start the game"
+    expected_artifacts: ["main.lua", ".love-version"]
+  - prompt: "add a double jump"
+    expected_artifacts: ["src/player.lua", "design/features/double-jump.md"]
+  - prompt: "implement the basic movement and jump"
+    expected_artifacts: ["src/player.lua"]
+  - prompt: "wire up the intro level to the world map"
+    expected_artifacts: ["src/levels/00_intro.lua"]
+  - prompt: "set up save and load with schema_version"
+    expected_artifacts: ["src/save.lua"]
+  - prompt: "package the .love file for mac"
+    expected_artifacts: []
 
 should_skip:
-  # - prompt: "how does love.physics work?"
-  #   correct_skill: lovedoc
+  - prompt: "how does love.physics.newWorld work?"
+    correct_skill: lovedoc
+  - prompt: "audit the staged diff"
+    correct_skill: audit
+  - prompt: "invoke the audit skill in staged mode"
+    correct_skill: audit
+  - prompt: "create a new skill called ability-designer"
+    correct_skill: skill-smith
+  - prompt: "explain the entity-component pattern"
+    correct_skill: lovedoc
+  - prompt: "review my changes"
+    correct_skill: audit
 
 should_disambiguate:
-  # - prompt: "I want a dash"
-  #   expected_clarification_contains: ["redirect", "ability"]
+  - prompt: "I want a dash"
+    expected_clarification_contains: ["ability", "spec", "redirect"]
+  - prompt: "make the jump feel better"
+    expected_clarification_contains: ["playtest", "values", "tune"]

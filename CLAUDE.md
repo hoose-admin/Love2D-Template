@@ -70,10 +70,11 @@ Valid `outcome` values: `success`, `declined`, `ambiguous`, `error`.
 | `scripts/skill-stats.sh` | Summarize `.claude/skill-log.jsonl` — invocations, outcomes, misfires |
 | `scripts/log-skill.sh` | Append a structured line to `.claude/skill-log.jsonl` |
 | `scripts/install-hooks.sh` | Install `hooks/pre-commit` into `.git/hooks/` |
+| `scripts/install-love2d.sh` | macOS installer — downloads official Love2D zip, strips quarantine, adds `~/.local/bin/love` wrapper (do not use `brew install love`) |
 
 ## Git Hook
 
-`hooks/pre-commit` runs `claude -p "/audit staged"` and blocks the commit if `blockers ≥ 1` or `majors ≥ 3`. Install via `scripts/install-hooks.sh` after `git init`.
+`hooks/pre-commit` invokes `claude -p --output-format json` with a natural-language prompt that asks for the audit skill in staged mode. The skill must respond with a single JSON object per `.claude/skills/audit/RUBRIC.md § Output format`; the hook parses it and blocks if `blockers ≥ 1` or `majors ≥ 3`. Custom slash commands are not available in `-p` mode (Claude Code design boundary — verified 2026-04-24), so hook reliability depends on the `audit` skill's description/triggers matching the hook prompt. Install via `scripts/install-hooks.sh` after `git init`.
 
 ## Phase
 

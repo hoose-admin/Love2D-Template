@@ -1,9 +1,40 @@
-# Trigger fixtures for the `audit` skill.
-# Populated during Phase 1 alongside lovebuilder.
-
 skill: audit
 version: 0.1.0
 
-should_fire: []
-should_skip: []
-should_disambiguate: []
+should_fire:
+  - prompt: "audit the staged diff"
+    expected_artifacts: []
+  - prompt: "review my changes"
+    expected_artifacts: []
+  - prompt: "invoke the audit skill in staged mode"
+    expected_artifacts: []
+  - prompt: "run a code audit on src/player.lua"
+    expected_artifacts: []
+  - prompt: "check this for issues against the rubric"
+    expected_artifacts: []
+  # The pre-commit hook's exact prompt — if this doesn't fire, the hook fails.
+  - prompt: |
+      Invoke the audit skill in staged mode. Read `git diff --staged`, apply the rubric in .claude/skills/audit/RUBRIC.md, and respond with a single JSON object AS YOUR ENTIRE FINAL RESPONSE (no markdown fences, no surrounding text). Shape:
+
+      {"status":"PASS"|"FAIL","blockers":<int>,"majors":<int>,"minors":<int>,"findings":[{"severity":"blocker"|"major"|"minor","dimension":"D1"|"D2"|"D3"|"D4"|"D5"|"D6"|"D7"|"D8","file":"<path>","line":<int>,"message":"<text>"}]}
+
+      "status" is "FAIL" if blockers>=1 OR majors>=3, else "PASS".
+    expected_artifacts: []
+
+should_skip:
+  - prompt: "scaffold the project"
+    correct_skill: lovebuilder
+  - prompt: "how does love.graphics.draw work?"
+    correct_skill: lovedoc
+  - prompt: "add a wall-slide"
+    correct_skill: lovebuilder
+  - prompt: "edit the skill-smith skill file"
+    correct_skill: skill-smith
+  - prompt: "explain the rubric to me"
+    correct_skill: lovedoc
+
+should_disambiguate:
+  - prompt: "check this code"
+    expected_clarification_contains: ["scope", "staged", "mode"]
+  - prompt: "is this good?"
+    expected_clarification_contains: ["scope", "file"]
