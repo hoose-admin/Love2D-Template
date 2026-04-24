@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(touch /Users/bx/code/platformer/.claude/skill-log.jsonl /Users/bx/code/platformer/playtests/.gitkeep /Users/bx/code/platformer/audits/skill-changes/.gitkeep /Users/bx/code/platformer/audits/skill-evals/.gitkeep)",
-      "Bash(chmod +x /Users/bx/code/platformer/scripts/*.sh /Users/bx/code/platformer/hooks/pre-commit)"
+      "Bash(chmod +x /Users/bx/code/platformer/scripts/*.sh /Users/bx/code/platformer/hooks/pre-commit)",
+      "Bash(cp /Users/bx/code/platformer/hooks/pre-commit /Users/bx/code/platformer/.git/hooks/pre-commit)",
+      "Bash(chmod +x /Users/bx/code/platformer/.git/hooks/pre-commit)"
     ]
   }
 }
