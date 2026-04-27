@@ -25,13 +25,16 @@ M.registry = {
   },
 }
 
--- Stable iteration order helps deterministic rendering (HUD badges).
-local function ordered_ids()
-  local ids = {}
-  for id in pairs(M.registry) do ids[#ids + 1] = id end
-  table.sort(ids)
-  return ids
+-- Precompute per-def display label and the stable id ordering once at module
+-- load. HUD draw iterates M.ordered_ids and reads def.label directly — no
+-- per-frame allocations, no per-frame string concat.
+for _, def in pairs(M.registry) do
+  def.label = def.badge .. ' (' .. def.hotkey .. ')'
 end
+
+M.ordered_ids = {}
+for id in pairs(M.registry) do M.ordered_ids[#M.ordered_ids + 1] = id end
+table.sort(M.ordered_ids)
 
 function M.def(id)
   return M.registry[id]
@@ -53,15 +56,6 @@ end
 
 function M.has(player, id)
   return player.abilities[id] == true
-end
-
--- Iterate ability defs the player owns, in stable order.
-function M.iter_owned(player)
-  local out = {}
-  for _, id in ipairs(ordered_ids()) do
-    if player.abilities[id] then out[#out + 1] = M.registry[id] end
-  end
-  return out
 end
 
 function M.snapshot(player)

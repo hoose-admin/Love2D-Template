@@ -41,15 +41,21 @@ function M.draw(player, save_msg, save_msg_alpha, zone_name)
   love.graphics.setColor(1, 1, 1, 0.8)
   love.graphics.circle('line', SOUL_CX, SOUL_CY, SOUL_R)
 
-  -- Ability badges (driven by src/abilities.lua registry)
-  local owned = abilities.iter_owned(player)
-  for i = 1, #owned do
-    local def = owned[i]
-    local y = BADGE_Y + (i - 1) * BADGE_STEP
-    love.graphics.setColor(0.75, 0.55, 1.0)
-    love.graphics.rectangle('fill', BADGE_X, y, 16, 16)
-    love.graphics.setColor(1, 1, 1, 0.9)
-    love.graphics.print(def.badge .. ' (' .. def.hotkey .. ')', BADGE_X + 22, y + 1)
+  -- Ability badges. Walk the cached registry order directly to keep the HUD
+  -- draw allocation-free (def.label is precomputed in src/abilities.lua).
+  local ordered = abilities.ordered_ids
+  local row = 0
+  for i = 1, #ordered do
+    local id = ordered[i]
+    if player.abilities[id] then
+      local def = abilities.registry[id]
+      local y = BADGE_Y + row * BADGE_STEP
+      love.graphics.setColor(0.75, 0.55, 1.0)
+      love.graphics.rectangle('fill', BADGE_X, y, 16, 16)
+      love.graphics.setColor(1, 1, 1, 0.9)
+      love.graphics.print(def.label, BADGE_X + 22, y + 1)
+      row = row + 1
+    end
   end
 
   -- Zone label

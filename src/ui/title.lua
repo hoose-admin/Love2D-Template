@@ -9,19 +9,28 @@ local TITLE_TEXT  = 'PLATFORMER'
 local SUB_TEXT    = 'a Hollow-Knight-shaped vertical slice'
 local HINT_TEXT   = 'arrows / w-s to move   enter to select   esc to quit'
 
+local function add_item(list, label, action)
+  list[#list + 1] = {
+    label          = label,
+    label_selected = '> ' .. label .. ' <',  -- precomputed; draw is allocation-free
+    action         = action,
+  }
+end
+
 function M.new(opts)
   local items = {}
   if opts.has_save and opts.on_continue then
-    items[#items + 1] = { label = 'Continue', action = opts.on_continue }
+    add_item(items, 'Continue', opts.on_continue)
   end
-  items[#items + 1] = { label = 'New Game', action = opts.on_new_game }
-  items[#items + 1] = { label = 'Quit',     action = opts.on_quit }
+  add_item(items, 'New Game', opts.on_new_game)
+  add_item(items, 'Quit',     opts.on_quit)
 
   return setmetatable({
     items = items,
     selected = 1,
     closed = false,
     pulse_t = 0,
+    on_quit = opts.on_quit,  -- held directly so Esc doesn't string-match the menu
   }, M)
 end
 
@@ -46,11 +55,7 @@ function M:keypressed(key)
   elseif key == 'escape' then
     -- Esc on the root menu quits.
     self.closed = true
-    local quit_item
-    for i = 1, #self.items do
-      if self.items[i].label == 'Quit' then quit_item = self.items[i]; break end
-    end
-    if quit_item then quit_item.action() end
+    if self.on_quit then self.on_quit() end
   end
 end
 
@@ -74,7 +79,7 @@ function M:draw()
     if i == self.selected then
       local pulse = 0.5 + 0.5 * math.sin(self.pulse_t * 4)
       love.graphics.setColor(1.00, 0.85 + pulse * 0.15, 0.40)
-      love.graphics.printf('> ' .. item.label .. ' <', 0, y, 800, 'center')
+      love.graphics.printf(item.label_selected, 0, y, 800, 'center')
     else
       love.graphics.setColor(0.65, 0.65, 0.75)
       love.graphics.printf(item.label, 0, y, 800, 'center')
