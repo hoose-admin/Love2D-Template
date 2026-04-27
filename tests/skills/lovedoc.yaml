@@ -1,0 +1,36 @@
+skill: lovedoc
+version: 0.1.0
+
+should_fire:
+  - prompt: "how does love.physics.newWorld work?"
+    expected_artifacts: []
+  - prompt: "explain the entity-component pattern"
+    expected_artifacts: []
+  - prompt: "what does love.graphics.push do?"
+    expected_artifacts: []
+  - prompt: "show me a fixed-timestep pattern for Love2D"
+    expected_artifacts: []
+  - prompt: "should I use love.physics or manual AABB here?"
+    expected_artifacts: []
+  - prompt: "reference an open-source Love2D platformer that handles camera well"
+    expected_artifacts: []
+
+should_skip:
+  - prompt: "add coyote time to the player"
+    correct_skill: lovebuilder
+  - prompt: "audit the staged diff"
+    correct_skill: audit
+  - prompt: "create a skill for UI work"
+    correct_skill: skill-smith
+  - prompt: "write a talking sign"
+    correct_skill: lovenarrative
+  - prompt: "add a pause menu"
+    correct_skill: loveui
+  - prompt: "write a test for the dash"
+    correct_skill: lovetest
+
+should_disambiguate:
+  - prompt: "tell me about collision"
+    expected_clarification_contains: ["version", "love.physics", "AABB"]
+  - prompt: "how do I handle state?"
+    expected_clarification_contains: ["pattern", "scope", "menu"]

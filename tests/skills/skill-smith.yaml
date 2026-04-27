@@ -1,0 +1,36 @@
+skill: skill-smith
+version: 0.1.0
+
+should_fire:
+  - prompt: "create a new skill called ability-designer"
+    expected_artifacts: ["audits/skill-changes/", ".claude/skills/ability-designer/SKILL.md"]
+  - prompt: "edit the lovebuilder skill to add a new trigger"
+    expected_artifacts: ["audits/skill-changes/", ".claude/skills/lovebuilder/SKILL.md"]
+  - prompt: "update the SKILL.md for audit"
+    expected_artifacts: [".claude/skills/audit/SKILL.md"]
+  - prompt: "add 'add a talking sign' to lovenarrative's fires_when"
+    expected_artifacts: [".claude/skills/lovenarrative/SKILL.md"]
+  - prompt: "draft a change to the lovedoc skill before applying"
+    expected_artifacts: ["audits/skill-changes/"]
+  - prompt: "add a test fixture for the loveui skill"
+    expected_artifacts: ["tests/skills/loveui.yaml"]
+
+should_skip:
+  - prompt: "scaffold the platformer"
+    correct_skill: lovebuilder
+  - prompt: "audit the staged diff"
+    correct_skill: audit
+  - prompt: "how does love.graphics.setColor work?"
+    correct_skill: lovedoc
+  - prompt: "add a pause menu"
+    correct_skill: loveui
+  - prompt: "write a new NPC dialog"
+    correct_skill: lovenarrative
+  - prompt: "write a regression test for dash"
+    correct_skill: lovetest
+
+should_disambiguate:
+  - prompt: "the skills are confusing — fix it"
+    expected_clarification_contains: ["which", "skill", "trigger"]
+  - prompt: "add a trigger"
+    expected_clarification_contains: ["which skill", "phrase", "fires_when"]

@@ -1,0 +1,36 @@
+skill: lovetest
+version: 0.1.0
+
+should_fire:
+  - prompt: "write a test that dashes through three crawlers in greenpath"
+    expected_artifacts: ["src/tests/"]
+  - prompt: "add a scripted playthrough for the bench save"
+    expected_artifacts: ["src/tests/"]
+  - prompt: "extend --test-walk to also check soul gain"
+    expected_artifacts: ["main.lua", "src/tests/"]
+  - prompt: "add a regression test for the focus-cancel-on-movement bug"
+    expected_artifacts: ["src/tests/"]
+  - prompt: "assert that HP never goes negative during a run"
+    expected_artifacts: ["src/tests/asserts.lua"]
+  - prompt: "add a CI target for the dash-chain scenario"
+    expected_artifacts: ["Makefile", "src/tests/"]
+
+should_skip:
+  - prompt: "fix the bug where dash loses momentum after a collision"
+    correct_skill: lovebuilder
+  - prompt: "audit the test harness code"
+    correct_skill: audit
+  - prompt: "how does love.timer.step work?"
+    correct_skill: lovedoc
+  - prompt: "add a pause menu test"
+    correct_skill: lovetest
+  - prompt: "write a playtest note for today's session"
+    correct_skill: none
+  - prompt: "draft a new skill for tests"
+    correct_skill: skill-smith
+
+should_disambiguate:
+  - prompt: "test the dash"
+    expected_clarification_contains: ["scenario", "assertion", "scope"]
+  - prompt: "add an assertion"
+    expected_clarification_contains: ["class", "invariant", "scope"]

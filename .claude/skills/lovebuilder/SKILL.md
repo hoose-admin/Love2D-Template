@@ -15,6 +15,9 @@ triggers:
     - user is asking how a Love2D API or gamedev pattern works (use lovedoc)
     - user is asking for a code review, audit, or PR review (use audit)
     - user is asking to create, edit, or test a skill file (use skill-smith)
+    - user is asking to author dialog, NPC lines, or story gates (use lovenarrative)
+    - user is asking to build a menu, HUD, or UI overlay (use loveui)
+    - user is asking to write a scripted test or regression scenario (use lovetest)
     - user only wants explanation or documentation with no code change
 prerequisites:
   soft:

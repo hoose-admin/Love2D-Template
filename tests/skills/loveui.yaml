@@ -1,0 +1,36 @@
+skill: loveui
+version: 0.1.0
+
+should_fire:
+  - prompt: "add a pause menu that opens on Escape"
+    expected_artifacts: ["src/ui/pause.lua", "src/ui/stack.lua"]
+  - prompt: "build the title screen"
+    expected_artifacts: ["src/ui/title.lua"]
+  - prompt: "add a game over screen"
+    expected_artifacts: ["src/ui/game_over.lua"]
+  - prompt: "draw a dialog box widget"
+    expected_artifacts: ["src/ui/dialog_box.lua"]
+  - prompt: "update the HUD to show the dash cooldown"
+    expected_artifacts: ["src/hud.lua"]
+  - prompt: "fix keyboard focus in the settings menu"
+    expected_artifacts: ["src/ui/"]
+  - prompt: "add a fade transition between zones"
+    expected_artifacts: ["src/ui/"]
+
+should_skip:
+  - prompt: "write the dialog lines for the sign"
+    correct_skill: lovenarrative
+  - prompt: "add coyote time"
+    correct_skill: lovebuilder
+  - prompt: "audit the HUD code"
+    correct_skill: audit
+  - prompt: "how does love.graphics.setScissor work?"
+    correct_skill: lovedoc
+  - prompt: "test that the pause menu actually pauses the world"
+    correct_skill: lovetest
+
+should_disambiguate:
+  - prompt: "add a menu"
+    expected_clarification_contains: ["pause", "title", "settings"]
+  - prompt: "make the dialog prettier"
+    expected_clarification_contains: ["widget", "layout", "content"]

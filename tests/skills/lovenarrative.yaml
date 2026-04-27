@@ -1,0 +1,34 @@
+skill: lovenarrative
+version: 0.1.0
+
+should_fire:
+  - prompt: "add dialog for the bench NPC in crossroads"
+    expected_artifacts: ["src/data/dialog/", "design/story/"]
+  - prompt: "write Cornifer's greeting lines"
+    expected_artifacts: ["src/data/dialog/"]
+  - prompt: "add a progression gate that requires the dash"
+    expected_artifacts: ["src/progression.lua"]
+  - prompt: "add a hint that fires after 2 minutes of idling near the pit"
+    expected_artifacts: ["src/hints.lua"]
+  - prompt: "branch the sign dialog based on whether the player has the dash"
+    expected_artifacts: ["src/data/dialog/"]
+  - prompt: "add a story beat for acquiring the mothwing cloak"
+    expected_artifacts: ["design/story/"]
+
+should_skip:
+  - prompt: "draw the dialog box"
+    correct_skill: loveui
+  - prompt: "add a new enemy that patrols greenpath"
+    correct_skill: lovebuilder
+  - prompt: "explain how dialog trees are typically structured"
+    correct_skill: lovedoc
+  - prompt: "test the dialog flow end to end"
+    correct_skill: lovetest
+  - prompt: "audit the progression module"
+    correct_skill: audit
+
+should_disambiguate:
+  - prompt: "add a talking sign"
+    expected_clarification_contains: ["content", "loveui", "widget"]
+  - prompt: "make the NPC say something"
+    expected_clarification_contains: ["which NPC", "lines", "flag"]

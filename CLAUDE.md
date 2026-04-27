@@ -10,19 +10,17 @@ A Hollow-Knight-style 2D platformer in Love2D, built via a small set of Claude s
 
 ## Skill System
 
-Two skills currently live in `.claude/skills/` (Phase 1):
+Skills live in `.claude/skills/`:
 
 | Skill | Role |
 |---|---|
-| `lovebuilder` | scaffold project, implement features, author levels, wire save system |
+| `lovebuilder` | scaffold project, implement mechanics and entities (enemies, NPCs-as-entities), author levels, wire save system |
 | `audit` | rubric-driven code review; reads `RUBRIC.md` in its own folder |
-
-Two more are planned for Phase 2 (see `Plan.md § Phase 2`):
-
-| Skill | Role |
-|---|---|
-| `lovedoc` | on-demand Love2D API lookups, gamedev patterns, open-source code references |
-| `skill-smith` | author and edit other skills |
+| `lovedoc` | on-demand Love2D API lookups, gamedev patterns, open-source references (no code changes) |
+| `skill-smith` | author and edit other skills; previews go under `audits/skill-changes/` before applying |
+| `lovenarrative` | dialog content, progression gates, hint timers; owns story data, not its rendering |
+| `loveui` | menus, HUD, overlays, dialog widgets, focus/nav; keyboard-first, single menu stack |
+| `lovetest` | scripted playthroughs and regression harnesses; deterministic, never flaky |
 
 Skills are specialists, not pipeline stages. They read the filesystem to discover prior work. They do not call each other.
 
@@ -85,4 +83,4 @@ Valid `outcome` values: `success`, `declined`, `ambiguous`, `error`.
 
 ## Phase
 
-Currently in Phase 1 (`lovebuilder` + `audit`, walking character). Phase 0 (instrumentation + specs) complete; `claude -p` capability check passed 2026-04-24. Phase 2 (`lovedoc` + `skill-smith`, feedback loop) follows.
+Phase 1 (`lovebuilder` + `audit`, walking character) shipped with the initial HK-clone build (crossroads + greenpath, nail slash, dash, bench save). Phase 2 expanded the skill roster with `lovedoc`, `skill-smith`, `lovenarrative`, `loveui`, and `lovetest` on 2026-04-24. The next meaningful gates: (a) a `claude -p` routing eval across all seven skills, and (b) first content authored via the new skills (a talking sign via `lovenarrative` + `loveui`, a regression scenario via `lovetest`).
