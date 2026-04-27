@@ -3,7 +3,8 @@
 -- leading to Greenpath. Keeps a continuous ground for x=[-1000..1600] so the
 -- legacy --test-walk smoke test still passes.
 
-local Enemy = require('src.enemy')
+local Enemy     = require('src.enemy')
+local abilities = require('src.abilities')
 
 local M = {
   name          = 'crossroads',
@@ -60,7 +61,8 @@ function M:reset(player)
   self.pickups = {}
   for i = 1, #self.pickups_spec do
     local p = self.pickups_spec[i]
-    if not (p.id == 'dash' and player and player.abilities.dash) then
+    local already_have = abilities.is_known(p.id) and player and abilities.has(player, p.id)
+    if not already_have then
       self.pickups[#self.pickups + 1] = { id = p.id, aabb = p.aabb }
     end
   end

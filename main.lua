@@ -3,7 +3,9 @@ local HUD         = require('src.hud')
 local Save        = require('src.save')
 local Stack       = require('src.ui.stack')
 local DialogBox   = require('src.ui.dialog_box')
+local Title       = require('src.ui.title')
 local progression = require('src.progression')
+local abilities   = require('src.abilities')
 
 local LEVEL_MODULES = {
   crossroads = 'src.levels.00_crossroads',
@@ -19,8 +21,10 @@ local state = {
   player = nil,
   level = nil,
   zone = nil,
-  t = 0,
+  t = 0,                    -- wall time since love.load (ticks during menu)
   frames = 0,
+  game_t = 0,               -- elapsed in-game time (ticks only when stack is empty)
+  game_frames = 0,
   test_mode = false,
   max_x = 0,
   jumped = false,
@@ -31,7 +35,9 @@ local state = {
   save_msg = nil,
   save_msg_t = 0,
   death_fade = 0,
-  transition_cooldown = 0,  -- prevents bouncing back through a just-used transition
+  transition_locked = false,  -- edge-triggered: stays locked while overlapping a transition AABB; clears once player has fully exited all transitions
+  test_menu_step = 1,
+  test_menu_script = nil,   -- list of {wall_t, key} pairs; populated in test_mode
 }
 
 local function load_zone(zone, spawn)
@@ -46,7 +52,10 @@ local function load_zone(zone, spawn)
   state.player:cancel_focus()
   state.camera_x = state.player.x - 400
   state.camera_y = state.player.y - 300
-  state.transition_cooldown = 0.35
+  -- Lock transitions until the player has stepped fully out of every
+  -- transition AABB at least once; otherwise the spawn often overlaps the
+  -- destination's incoming AABB and immediately bounces back.
+  state.transition_locked = true
 end
 
 local function respawn_from_save()
@@ -60,25 +69,54 @@ local function respawn_from_save()
   state.death_fade = 0
 end
 
+local function start_game(saved)
+  local respawn = (saved and saved.player and saved.player.respawn)
+    or { zone = 'crossroads', x = 100, y = 400 }
+  state.respawn = respawn
+  state.player = Player.new(respawn.x, respawn.y)
+  if saved and saved.player and saved.player.abilities then
+    abilities.load(state.player, saved.player.abilities)
+  end
+  if saved and saved.world and saved.world.flags then
+    progression.load_from_save(saved.world.flags)
+  else
+    progression.reset()
+  end
+  load_zone(respawn.zone, { x = respawn.x, y = respawn.y })
+  state.game_t = 0
+  state.game_frames = 0
+  state.max_x = state.player.x
+  state.jumped = false
+  state.fell_through = false
+end
+
 function love.load(args)
   for _, v in ipairs(args or {}) do
     if v == '--test-walk' then state.test_mode = true end
   end
 
-  local saved = Save.load()
-  local respawn = (saved and saved.player and saved.player.respawn)
-    or { zone = 'crossroads', x = 100, y = 400 }
-  state.respawn = respawn
-  state.player = Player.new(respawn.x, respawn.y)
-  if saved and saved.player and saved.player.abilities
-     and saved.player.abilities.dash == true then
-    state.player.abilities.dash = true
-  end
-  if saved and saved.world and saved.world.flags then
-    progression.load_from_save(saved.world.flags)
+  -- In test_mode the menu must be deterministic. We pretend there's no save
+  -- (without touching the real save.json) so items are always [New Game, Quit]
+  -- and the harness's scripted Down/Up/Enter sequence lands on New Game.
+  local has_save = (not state.test_mode) and (Save.load() ~= nil)
+
+  if state.test_mode then
+    state.test_menu_script = {
+      { 0.20, 'down' },    -- exercise nav: cycles to Quit (or wraps)
+      { 0.30, 'up' },      -- back to New Game
+      { 0.40, 'return' },  -- start the game
+    }
   end
 
-  load_zone(respawn.zone, { x = respawn.x, y = respawn.y })
+  Stack.push(Title.new({
+    has_save    = has_save,
+    on_continue = function() start_game(Save.load()) end,
+    on_new_game = function()
+      if not state.test_mode then love.filesystem.remove(Save.SAVE_FILE) end
+      start_game(nil)
+    end,
+    on_quit     = function() love.event.quit(0) end,
+  }))
 end
 
 local function try_interact()
@@ -97,7 +135,7 @@ local function try_interact()
       schema_version = Save.SCHEMA_VERSION,
       player = {
         respawn = state.respawn,
-        abilities = { dash = state.player.abilities.dash },
+        abilities = abilities.snapshot(state.player),
         hints_seen = {},
       },
       world = {
@@ -178,7 +216,21 @@ function love.update(dt)
 
   -- UI stack updates every frame. When it's non-empty, freeze world sim.
   Stack.update(dt)
-  if not state.test_mode and Stack.is_paused() then
+
+  -- Test harness: drive the menu via a scripted Down/Up/Enter sequence.
+  if state.test_mode and Stack.is_paused() and state.test_menu_script then
+    while state.test_menu_step <= #state.test_menu_script do
+      local step = state.test_menu_script[state.test_menu_step]
+      if state.t >= step[1] then
+        Stack.keypressed(step[2])
+        state.test_menu_step = state.test_menu_step + 1
+      else
+        break
+      end
+    end
+  end
+
+  if Stack.is_paused() then
     if state.save_msg_t > 0 then
       state.save_msg_t = state.save_msg_t - dt
       if state.save_msg_t <= 0 then
@@ -189,15 +241,15 @@ function love.update(dt)
     return
   end
 
-  if state.transition_cooldown > 0 then
-    state.transition_cooldown = state.transition_cooldown - dt
-  end
+  -- World running: tick game-local clocks.
+  state.game_t = state.game_t + dt
+  state.game_frames = state.game_frames + 1
 
   local right, left, focus_held
   if state.test_mode then
-    right, left = test_input(state.t)
+    right, left = test_input(state.game_t)
     focus_held = false
-    if test_jump_at(state.t) then state.player:press_jump() end
+    if test_jump_at(state.game_t) then state.player:press_jump() end
   else
     right = love.keyboard.isDown('right') or love.keyboard.isDown('d')
     left  = love.keyboard.isDown('left')  or love.keyboard.isDown('a')
@@ -228,34 +280,44 @@ function love.update(dt)
     end
   end
 
-  -- Pickups
+  -- Pickups (any pickup whose id is in the abilities registry is treated
+  -- generically — see src/abilities.lua).
   local pickups = state.level.pickups
   for i = #pickups, 1, -1 do
     local p = pickups[i]
     if aabb_overlap(
          state.player.x, state.player.y, state.player.w, state.player.h,
          p.aabb.x, p.aabb.y, p.aabb.w, p.aabb.h) then
-      if p.id == 'dash' then
-        state.player.abilities.dash = true
-        state.save_msg = 'Acquired: Mothwing Cloak — press K to dash.'
+      local def = abilities.acquire(state.player, p.id)
+      if def and def.pickup_message then
+        state.save_msg = def.pickup_message
         state.save_msg_t = 4
       end
       table.remove(pickups, i)
     end
   end
 
-  -- Transitions
-  if state.transition_cooldown <= 0 and not state.player.dead then
+  -- Transitions: edge-triggered. Lock fires once on overlap and stays locked
+  -- until the player has cleared every transition AABB. This prevents the
+  -- spawn-on-AABB bounce that a time-based cooldown couldn't handle reliably.
+  if not state.player.dead then
     local transitions = state.level.transitions
+    local in_any = false
+    local fired = false
     for i = 1, #transitions do
       local tr = transitions[i]
       if aabb_overlap(
            state.player.x, state.player.y, state.player.w, state.player.h,
            tr.aabb.x, tr.aabb.y, tr.aabb.w, tr.aabb.h) then
-        load_zone(tr.to, tr.spawn)
-        break
+        in_any = true
+        if not state.transition_locked and not fired then
+          load_zone(tr.to, tr.spawn)
+          fired = true
+          break
+        end
       end
     end
+    if not in_any then state.transition_locked = false end
   end
 
   -- Death on fall past kill_y
@@ -299,15 +361,19 @@ function love.update(dt)
   if state.player.jumped_this_frame then state.jumped = true end
   if state.player.y > state.level.floor.y + 100 then state.fell_through = true end
 
-  if state.test_mode and state.t >= 30 then
-    local avg_fps = state.frames / state.t
+  if state.test_mode and state.game_t >= 30 then
+    local avg_fps = state.game_frames / state.game_t
+    local menu_navigated = state.test_menu_script
+                       and state.test_menu_step > #state.test_menu_script
     local errors = {}
     if avg_fps < 55 then errors[#errors + 1] = ('avg fps %.1f < 55'):format(avg_fps) end
     if not state.jumped then errors[#errors + 1] = 'player never jumped' end
     if state.max_x < 300 then errors[#errors + 1] = ('max_x %.0f < 300'):format(state.max_x) end
     if state.fell_through then errors[#errors + 1] = 'player fell through floor' end
-    print(('test-walk: avg_fps=%.1f max_x=%.0f jumped=%s fell_through=%s')
-      :format(avg_fps, state.max_x, tostring(state.jumped), tostring(state.fell_through)))
+    if not menu_navigated then errors[#errors + 1] = 'menu nav script never completed' end
+    print(('test-walk: avg_fps=%.1f max_x=%.0f jumped=%s fell_through=%s menu_nav=%s')
+      :format(avg_fps, state.max_x, tostring(state.jumped),
+              tostring(state.fell_through), tostring(menu_navigated)))
     if #errors == 0 then
       print('test-walk: PASS')
       love.event.quit(0)
@@ -319,46 +385,48 @@ function love.update(dt)
 end
 
 function love.draw()
-  local bg = state.level.bg or { 0.08, 0.08, 0.10 }
-  love.graphics.setColor(bg[1], bg[2], bg[3])
-  love.graphics.rectangle('fill', 0, 0, 800, 600)
+  if state.level and state.player then
+    local bg = state.level.bg or { 0.08, 0.08, 0.10 }
+    love.graphics.setColor(bg[1], bg[2], bg[3])
+    love.graphics.rectangle('fill', 0, 0, 800, 600)
 
-  love.graphics.push()
-  love.graphics.translate(-math.floor(state.camera_x), -math.floor(state.camera_y))
-  state.level:draw()
-  local enemies = state.level.enemies
-  for i = 1, #enemies do enemies[i]:draw() end
-  state.player:draw()
+    love.graphics.push()
+    love.graphics.translate(-math.floor(state.camera_x), -math.floor(state.camera_y))
+    state.level:draw()
+    local enemies = state.level.enemies
+    for i = 1, #enemies do enemies[i]:draw() end
+    state.player:draw()
 
-  -- Interact prompt when near a bench or readable item and nothing is open.
-  if Stack.is_empty() and not state.player.dead then
-    local b = state.level.bench
-    if b and aabb_overlap(state.player.x, state.player.y, state.player.w, state.player.h,
-                          b.x, b.y, b.w, b.h) then
-      love.graphics.setColor(1, 1, 1, 0.9)
-      love.graphics.print('[Enter] rest', b.x - 8, b.y - 16)
-    end
-    local items = state.level.interactables
-    if items then
-      for i = 1, #items do
-        local it = items[i]
-        if aabb_overlap(state.player.x, state.player.y, state.player.w, state.player.h,
-                        it.aabb.x, it.aabb.y, it.aabb.w, it.aabb.h) then
-          love.graphics.setColor(1, 1, 1, 0.9)
-          love.graphics.print('[Enter] read', it.aabb.x - 10, it.aabb.y - 18)
+    -- Interact prompt when near a bench or readable item and nothing is open.
+    if Stack.is_empty() and not state.player.dead then
+      local b = state.level.bench
+      if b and aabb_overlap(state.player.x, state.player.y, state.player.w, state.player.h,
+                            b.x, b.y, b.w, b.h) then
+        love.graphics.setColor(1, 1, 1, 0.9)
+        love.graphics.print('[Enter] rest', b.x - 8, b.y - 16)
+      end
+      local items = state.level.interactables
+      if items then
+        for i = 1, #items do
+          local it = items[i]
+          if aabb_overlap(state.player.x, state.player.y, state.player.w, state.player.h,
+                          it.aabb.x, it.aabb.y, it.aabb.w, it.aabb.h) then
+            love.graphics.setColor(1, 1, 1, 0.9)
+            love.graphics.print('[Enter] read', it.aabb.x - 10, it.aabb.y - 18)
+          end
         end
       end
     end
-  end
-  love.graphics.pop()
+    love.graphics.pop()
 
-  local alpha = 1
-  if state.save_msg_t < 0.6 then alpha = math.max(0, state.save_msg_t / 0.6) end
-  HUD.draw(state.player, state.save_msg, alpha, state.level.display_name or state.zone)
+    local alpha = 1
+    if state.save_msg_t < 0.6 then alpha = math.max(0, state.save_msg_t / 0.6) end
+    HUD.draw(state.player, state.save_msg, alpha, state.level.display_name or state.zone)
+  end
 
   Stack.draw()
 
-  if state.player.dead and not state.test_mode then
+  if state.player and state.player.dead and not state.test_mode then
     love.graphics.setColor(0, 0, 0, math.min(0.85, state.death_fade / 1.2))
     love.graphics.rectangle('fill', 0, 0, 800, 600)
     love.graphics.setColor(1, 1, 1)
@@ -367,7 +435,8 @@ function love.draw()
 
   if state.test_mode then
     love.graphics.setColor(1, 1, 1)
-    love.graphics.print(('test-walk t=%.1f fps=%.0f x=%.0f'):format(
-      state.t, love.timer.getFPS(), state.player.x), 10, 10)
+    local px = state.player and state.player.x or 0
+    love.graphics.print(('test-walk t=%.1f game_t=%.1f fps=%.0f x=%.0f'):format(
+      state.t, state.game_t, love.timer.getFPS(), px), 10, 10)
   end
 end

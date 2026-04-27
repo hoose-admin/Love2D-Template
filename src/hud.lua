@@ -1,5 +1,7 @@
 -- HUD: HP masks, soul orb, ability badges, transient save/pickup message.
 
+local abilities = require('src.abilities')
+
 local M = {}
 
 local MASK_SIZE     = 18
@@ -11,6 +13,7 @@ local SOUL_CY       = 56
 local SOUL_R        = 16
 local BADGE_X       = 14
 local BADGE_Y       = 84
+local BADGE_STEP    = 22
 
 function M.draw(player, save_msg, save_msg_alpha, zone_name)
   -- HP masks
@@ -38,12 +41,15 @@ function M.draw(player, save_msg, save_msg_alpha, zone_name)
   love.graphics.setColor(1, 1, 1, 0.8)
   love.graphics.circle('line', SOUL_CX, SOUL_CY, SOUL_R)
 
-  -- Dash badge
-  if player.abilities.dash then
+  -- Ability badges (driven by src/abilities.lua registry)
+  local owned = abilities.iter_owned(player)
+  for i = 1, #owned do
+    local def = owned[i]
+    local y = BADGE_Y + (i - 1) * BADGE_STEP
     love.graphics.setColor(0.75, 0.55, 1.0)
-    love.graphics.rectangle('fill', BADGE_X, BADGE_Y, 16, 16)
+    love.graphics.rectangle('fill', BADGE_X, y, 16, 16)
     love.graphics.setColor(1, 1, 1, 0.9)
-    love.graphics.print('DASH (K)', BADGE_X + 22, BADGE_Y + 1)
+    love.graphics.print(def.badge .. ' (' .. def.hotkey .. ')', BADGE_X + 22, y + 1)
   end
 
   -- Zone label

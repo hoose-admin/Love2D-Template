@@ -63,6 +63,7 @@ For scaffold mode on macOS, verify Love2D is installed and matches the pinned ve
 
 - `scaffold` — empty repo or user asks to set up the game.
 - `implement` — add a mechanic or system to existing code.
+- `ability` — add a new player ability (registry entry, player method, level pickup spec).
 - `level` — author or wire a level file.
 - `save` — wire save/load via `love.filesystem` with JSON and `schema_version`.
 - `package` — build the `.love` file or platform wrapper.
@@ -75,6 +76,7 @@ For anything non-trivial, check `design/features/<name>.md`. If missing, write a
 
 - **Scaffold** produces at minimum: `main.lua`, `conf.lua`, `src/player.lua`, `src/levels/00_intro.lua`. Physics values live as named constants at the top of `player.lua` so they are easy to tune. Do not introduce `src/collision.lua` or `src/state_manager.lua` at scaffold time — inline collision into `player.lua` and defer the state manager until a second state (pause, menu, transition) actually exists.
 - **Implement** edits existing modules; no new module unless the concept is cohesive enough to warrant one.
+- **Ability** has exactly three code touchpoints (anything else is drift): (1) add an entry to `src/abilities.lua` with `id, display_name, badge, hotkey, pickup_message, player_method`; (2) implement the `try_X` method on `src/player.lua`, early-returning when `not self.abilities[id]`; (3) wire one input branch in `main.lua`'s `love.keypressed` calling that method. The pickup spec on a level (`pickups_spec = { {id, aabb} }`) is data, not code — HUD, save, and level-reset are all registry-driven and should not be edited.
 - **Level** defines a table: `{ name, player_start = {x,y}, geometry = {aabbs...}, gates = {...}, transitions = {...} }`.
 - **Save** uses `love.filesystem.write` with JSON. Top-level keys: `schema_version`, `player`, `world`. Always forward-compatible (readers must ignore unknown fields).
 
